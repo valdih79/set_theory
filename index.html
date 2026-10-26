@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Set Theory Teaching Board v5</title>
+<style>
+:root{--ink:#111827;--muted:#64748b;--line:#cbd5e1;--blue:#2563eb;--red:#dc2626;--green:#16a34a;--purple:#9333ea}
+*{box-sizing:border-box}body{margin:0;font-family:Segoe UI,Arial,sans-serif;color:var(--ink);background:#f8fafc}
+header{background:#fff;border-bottom:1px solid var(--line);padding:12px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+h1{font-size:20px;margin:0 12px 0 0}button,input{font:inherit}button{padding:8px 11px;border:2px solid #94a3b8;border-radius:8px;background:#fff;color:#111827;cursor:pointer;font-weight:600}button:hover{background:#e2e8f0;border-color:#64748b}
+button.primary{background:#2563eb;color:#fff;border-color:#2563eb}button.active{background:#111827;color:#fff;border-color:#111827}
+input{width:145px;padding:8px 10px;border:2px solid #94a3b8;border-radius:8px;background:#fff;color:#111827}
+main{padding:12px}.ops{display:flex;align-items:center;gap:7px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);padding:9px;border-radius:10px;margin-bottom:10px}
+#board{position:relative;width:100%;height:680px;max-height:75vh;min-height:520px;background:#fff;border:3px solid #374151;overflow:hidden;touch-action:none}
+#u{position:absolute;z-index:30;left:10px;top:7px;font:bold 25px Georgia,serif}
+.set{position:absolute;border:4px solid;border-radius:50%;cursor:move;touch-action:none;user-select:none;background:transparent;z-index:5}
+.set.selected{filter:drop-shadow(0 0 3px #64748b)}
+.setLabel{position:absolute;left:50%;top:12px;transform:translateX(-50%);font:700 32px Georgia,serif;pointer-events:none;line-height:1.15;text-shadow:0 1px 0 #fff}
+.item{position:absolute;z-index:20;min-width:32px;min-height:32px;padding:3px 6px;display:flex;align-items:center;justify-content:center;font:600 23px Segoe UI,Arial,sans-serif;cursor:move;user-select:none;touch-action:none;color:#111827}
+.item.selected{outline:none}
+#shade{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none}
+.help{color:var(--muted);font-size:13px;margin-left:auto}.status{padding:8px 2px;color:var(--muted);font-size:14px}
+@media(max-width:700px){#board{height:540px}.help{width:100%;margin:0}}
+header button,.ops button{min-height:40px;font-weight:600} header input,.ops input{min-height:40px} button:disabled{color:#475569;background:#e2e8f0;border-color:#94a3b8;opacity:1}
+
+.exprToken,#exprComp,#exprBack,#exprClear,#applyExpr{
+  font-family:Arial,"DejaVu Sans",sans-serif !important;
+  font-size:16px !important;
+  font-weight:600 !important;
+  font-style:normal !important;
+}
+
+
+.mathToken{
+  font-family:"Cambria Math","STIX Two Math","DejaVu Sans",serif !important;
+  font-size:18px !important;
+  font-weight:400 !important;
+  line-height:1 !important;
+}
+
+
+.item.selected{
+  background:#dbeafe !important;
+  outline:2px solid #2563eb !important;
+  outline-offset:3px;
+  border-radius:5px;
+}
+
+</style>
+</head>
+<body>
+<header>
+
+<button id="addSet" class="primary">+ Set</button>
+<input id="itemText" placeholder="Type item">
+<button id="addItem">Add item</button>
+<button id="numbers">Add 1–9</button>
+<button id="letters">Add A–Z</button>
+<button id="smaller">Smaller</button><button id="larger">Larger</button>
+<button id="del">Delete</button>
+<button id="clearItems">Clear items</button><button id="reset">New board</button>
+</header>
+<main>
+<div class="ops">
+<button class="op" data-op="none">None</button>
+<button class="op" data-op="only-a">A</button>
+<button class="op" data-op="only-b">B</button>
+<button class="op" data-op="union">A ∪ B</button>
+<button class="op" data-op="intersection">A ∩ B</button>
+<button class="op" data-op="a-b">A ∖ B</button>
+<button class="op" data-op="b-a">B ∖ A</button>
+<button class="op" data-op="ac">C<sub>G</sub>A</button>
+<button class="op" data-op="bc">C<sub>G</sub>B</button>
+<button class="exprToken mathToken" data-token="∪">&#8746;</button>
+<button class="exprToken mathToken" data-token="∩">&#8745;</button>
+<button class="exprToken" data-token="\">\</button>
+<button class="exprToken" data-token="(">(</button>
+<button class="exprToken" data-token=")">)</button>
+<button id="exprComp">C<sub>G</sub>( )</button>
+<label style="margin-left:8px;font-weight:600">Expression:</label>
+<input id="expr" value="" style="width:220px;background:#fff" aria-label="Set expression">
+<button id="exprBack">⌫</button>
+<button id="exprClear">Clear</button>
+<button id="applyExpr">Apply</button>
+</div>
+<div id="board"><svg id="shade" aria-hidden="true"></svg><div id="u">G</div></div>
+<div id="result" style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:15px 18px;margin-top:10px;font-size:24px;line-height:1.35">
+<strong>Selected set:</strong> <span id="resultExpr">—</span> = <span id="resultSet">{ }</span>
+</div>
+<div id="status" class="status" style="display:none"></div>
+</main>
+<script>
+(()=>{
+const board=document.querySelector('#board'),svg=document.querySelector('#shade'),status=document.querySelector('#status'),input=document.querySelector('#itemText');
+const colors=['#2563eb','#dc2626','#16a34a','#9333ea','#d97706','#0891b2'];let selected=null,currentOp='none';
+
+function select(el){document.querySelectorAll('.selected').forEach(x=>x.classList.remove('selected'));selected=el;if(el)el.classList.add('selected')}
+function drag(el){
+ el.addEventListener('pointerdown',e=>{if(e.button!==0)return;select(el);e.preventDefault();el.setPointerCapture(e.pointerId);
+ const br=board.getBoundingClientRect(),r=el.getBoundingClientRect(),ox=e.clientX-r.left,oy=e.clientY-r.top;
+ const mv=ev=>{let x=ev.clientX-br.left-ox,y=ev.clientY-br.top-oy;x=Math.max(0,Math.min(board.clientWidth-el.offsetWidth,x));y=Math.max(0,Math.min(board.clientHeight-el.offsetHeight,y));el.style.left=x+'px';el.style.top=y+'px';renderShade()};
+ const up=()=>{el.removeEventListener('pointermove',mv);el.removeEventListener('pointerup',up)};
+ el.addEventListener('pointermove',mv);el.addEventListener('pointerup',up)});
+}
+function makeSet(name,x,y,size=260){
+ const d=document.createElement('div');d.className='set';d.dataset.name=name;d.style.left=x+'px';d.style.top=y+'px';d.style.width=size+'px';d.style.height=size+'px';d.style.borderColor=colors[Math.max(0,name.toUpperCase().charCodeAt(0)-65)%colors.length];d.style.color=d.style.borderColor;
+ const l=document.createElement('div');l.className='setLabel';l.textContent=name;d.appendChild(l);board.appendChild(d);drag(d);d.addEventListener('dblclick',()=>rename(d));return d;
+}
+function makeItem(t,x,y){const d=document.createElement('div');d.className='item';d.textContent=t;d.style.left=x+'px';d.style.top=y+'px';board.appendChild(d);drag(d);d.addEventListener('dblclick',()=>rename(d));return d}
+function rename(el=selected){if(!el)return;let old=el.classList.contains('set')?el.dataset.name:el.textContent,v=prompt('New label',old);if(v&&v.trim()){if(el.classList.contains('set')){el.dataset.name=v.trim();el.querySelector('.setLabel').textContent=v.trim()}else el.textContent=v.trim()}}
+function circle(el){return{x:el.offsetLeft+el.offsetWidth/2,y:el.offsetTop+el.offsetHeight/2,r:el.offsetWidth/2}}
+function inside(c,x,y,pad=22){return Math.hypot(x-c.x,y-c.y)<c.r-pad}
+
+function makeDefaultSets(){
+ const size=Math.min(360,Math.max(300,Math.floor(board.clientWidth*0.31)));
+ defaultSetSize=size;
+   const overlap=Math.floor(size*0.22);
+ const total=size*2-overlap;
+ const left=Math.max(45,Math.floor((board.clientWidth-total)/2));
+ const top=Math.max(85,Math.floor((board.clientHeight-size)/2)-20);
+ makeSet('A',left,top,size);
+ makeSet('B',left+size-overlap,top,size);
+}
+
+function addSet(){
+ const used=new Set([...board.querySelectorAll('.set')].map(el=>el.dataset.name.toUpperCase()));
+ let name='A';
+ for(let code=65;code<=90;code++){
+   const candidate=String.fromCharCode(code);
+   if(!used.has(candidate)){name=candidate;break}
+ }
+ const n=board.querySelectorAll('.set').length,size=defaultSetSize;
+ const positions=[[120,100],[340,100],[230,260],[500,230],[50,300]];
+ let [x,y]=positions[n]||[50+(n*83)%Math.max(100,board.clientWidth-size-60),80+(n*67)%300];
+ x=Math.max(8,Math.min(board.clientWidth-size-8,x));y=Math.max(45,Math.min(board.clientHeight-size-8,y));
+ makeSet(name,x,y,size);renderShade();status.textContent='Set '+name+' added.';
+}
+function addItem(){
+ let v=input.value.trim();
+ if(!v){status.textContent='Type a number, letter or name in the box first.';input.focus();return}
+ const count=board.querySelectorAll('.item').length;
+ const x=35+(count%6)*58, y=58+Math.floor((count%12)/6)*48;
+ const d=makeItem(v,x,y);select(d);
+ input.value='';input.focus();
+ status.textContent='Added item “'+v+'” at the top-left of the board. Drag it into a set.';
+}
+function randomPoint(existingPoints=[]){
+ const cs=[...board.querySelectorAll('.set')].map(circle);
+ const modes=cs.length>=2?['A','B','AB','OUT']:cs.length?['A','OUT']:['OUT'];
+ const mode=modes[Math.floor(Math.random()*modes.length)];
+ const edgeGap=32,itemGap=68;
+ const far=(x,y)=>existingPoints.every(p=>Math.hypot(x-p.x,y-p.y)>=itemGap);
+ const inSafe=(c,x,y)=>Math.hypot(x-c.x,y-c.y)<=c.r-edgeGap;
+ const outSafe=(c,x,y)=>Math.hypot(x-c.x,y-c.y)>=c.r+edgeGap;
+ for(let k=0;k<2200;k++){
+   const setEls=[...board.querySelectorAll('.set')];
+   const minX=setEls.length?Math.max(35,Math.min(...setEls.map(e=>e.offsetLeft))-150):45;
+   const maxX=setEls.length?Math.min(board.clientWidth-45,Math.max(...setEls.map(e=>e.offsetLeft+e.offsetWidth))+150):board.clientWidth-45;
+   const minY=setEls.length?Math.max(55,Math.min(...setEls.map(e=>e.offsetTop))-120):65;
+   const maxY=setEls.length?Math.min(board.clientHeight-55,Math.max(...setEls.map(e=>e.offsetTop+e.offsetHeight))+120):board.clientHeight-55;
+   const x=minX+Math.random()*Math.max(40,maxX-minX);
+   const y=minY+Math.random()*Math.max(40,maxY-minY);
+   if(!far(x,y))continue;
+   const a=cs[0]?inSafe(cs[0],x,y):false,b=cs[1]?inSafe(cs[1],x,y):false;
+   const oa=cs[0]?outSafe(cs[0],x,y):true,ob=cs[1]?outSafe(cs[1],x,y):true;
+   if((mode==='A'&&a&&ob)||(mode==='B'&&b&&oa)||(mode==='AB'&&cs.length>=2&&a&&b)||(mode==='OUT'&&cs.every(c=>outSafe(c,x,y))))return{x,y};
+ }
+ for(let k=0;k<1800;k++){
+   const setEls=[...board.querySelectorAll('.set')];
+   const minX=setEls.length?Math.max(35,Math.min(...setEls.map(e=>e.offsetLeft))-150):45;
+   const maxX=setEls.length?Math.min(board.clientWidth-45,Math.max(...setEls.map(e=>e.offsetLeft+e.offsetWidth))+150):board.clientWidth-45;
+   const minY=setEls.length?Math.max(55,Math.min(...setEls.map(e=>e.offsetTop))-120):65;
+   const maxY=setEls.length?Math.min(board.clientHeight-55,Math.max(...setEls.map(e=>e.offsetTop+e.offsetHeight))+120):board.clientHeight-55;
+   const x=minX+Math.random()*Math.max(40,maxX-minX);
+   const y=minY+Math.random()*Math.max(40,maxY-minY);
+   if(far(x,y)&&cs.every(c=>Math.abs(Math.hypot(x-c.x,y-c.y)-c.r)>edgeGap))return{x,y};
+ }
+ return{x:55+(existingPoints.length%5)*85,y:70+Math.floor(existingPoints.length/5)*75};
+}
+
+function pointInSet(c,x,y){return Math.hypot(x-c.x,y-c.y)<=c.r}
+function setMapAt(x,y){
+ const m={};[...board.querySelectorAll('.set')].forEach(el=>{m[el.dataset.name]=pointInSet(circle(el),x,y)});return m;
+}
+function normalizeExpr(raw){
+ return raw.replace(/CG\s*\(([A-Za-z])\)/g,'~$1').replace(/C_G\s*\(([A-Za-z])\)/g,'~$1').replace(/\s+/g,'').replace(/u/gi,'∪').replace(/n/gi,'∩')
+}
+function tokenize(raw){
+ const e=normalizeExpr(raw),t=[];for(let i=0;i<e.length;i++){let c=e[i];if(/[A-Za-z]/.test(c))t.push(c.toUpperCase());else if('∪∩()~\\'.includes(c))t.push(c);else return null}return t
+}
+function evalExpression(raw, membership){
+ const t=tokenize(raw);if(!t||!t.length)return null;let pos=0;
+ function factor(){
+ if(t[pos]==='~'){pos++;return !factor()}
+ if(t[pos]==='('){pos++;let v=union();if(t[pos]!==')')throw 0;pos++;return v}
+ let n=t[pos++];if(!n||!/[A-Z]/.test(n))throw 0;return !!membership[n]
+}
+ function inter(){
+ let v=factor();
+ while(t[pos]==='∩'||t[pos]==='\\'){
+   const op=t[pos++],rhs=factor();
+   v=op==='∩'?(v&&rhs):(v&&!rhs);
+ }
+ return v
+}
+ function union(){let v=inter();while(t[pos]==='∪'){pos++;const rhs=inter();v=v||rhs}return v}
+ try{let v=union();return pos===t.length?v:null}catch(e){return null}
+}
+function updateResult(expr){
+ const vals=[];
+ board.querySelectorAll('.item').forEach(el=>{
+   let x=el.offsetLeft+el.offsetWidth/2,y=el.offsetTop+el.offsetHeight/2;
+   let chosen;
+   if(expr==='C_G A') chosen=!setMapAt(x,y).A;
+   else if(expr==='C_G B') chosen=!setMapAt(x,y).B;
+   else chosen=evalExpression(expr,setMapAt(x,y));
+   if(chosen) vals.push(el.textContent);
+ });
+ const resultExpr=document.querySelector('#resultExpr');
+ if(expr==='C_G A') resultExpr.innerHTML='C<sub>G</sub>A';
+ else if(expr==='C_G B') resultExpr.innerHTML='C<sub>G</sub>B';
+ else {
+   const compact=expr.replace(/\s+/g,'');
+   const parts=compact.split(/(C(?:_G|G)\([A-Za-z]\))/g);
+   resultExpr.innerHTML=parts.map(p=>{
+     const m=p.match(/^C(?:_G|G)\(([A-Za-z])\)$/);
+     if(m)return 'C<sub>G</sub>('+m[1]+')';
+     return p.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+             .replace(/([∪∩\\])/g,' $1 ');
+   }).join('');
+ }
+ document.querySelector('#resultSet').textContent=expr ? '{ '+vals.join(', ')+' }' : '';
+}
+
+function renderShade(){
+ const w=board.clientWidth,h=board.clientHeight;svg.setAttribute('viewBox',`0 0 ${w} ${h}`);svg.innerHTML='';
+ let expr=currentOp;
+ if(currentOp==='none'){updateResult('');return}
+ if(currentOp==='only-a')expr='A';
+ else if(currentOp==='only-b')expr='B';
+ else if(currentOp==='union')expr='A ∪ B';
+ else if(currentOp==='intersection')expr='A ∩ B';
+ else if(currentOp==='a-b')expr='A \\ B';
+ else if(currentOp==='b-a')expr='B \\ A';
+ else if(currentOp==='ac')expr='C_G A';
+ else if(currentOp==='bc')expr='C_G B';
+ if(currentOp==='custom')expr=document.querySelector('#expr').value.trim();
+ const NS='http://www.w3.org/2000/svg';
+ // Custom expressions support union/intersection for A,B,C,... using a grid of small cells.
+ if(currentOp==='custom'){
+   const test=tokenize(expr);if(!test){status.textContent='Use set letters, ∪, ∩ and parentheses.';updateResult(expr);return}
+   const step=5, frag=document.createDocumentFragment();
+   for(let y=0;y<h;y+=step)for(let x=0;x<w;x+=step)if(evalExpression(expr,setMapAt(x+step/2,y+step/2))){
+     let r=document.createElementNS(NS,'rect');r.setAttribute('x',x);r.setAttribute('y',y);r.setAttribute('width',step+.5);r.setAttribute('height',step+.5);r.setAttribute('fill','#f59e0b');r.setAttribute('fill-opacity','.28');frag.appendChild(r)
+   }
+   svg.appendChild(frag);updateResult(expr);return
+ }
+ const sets=[...board.querySelectorAll('.set')],A=sets[0]?circle(sets[0]):null,B=sets[1]?circle(sets[1]):null;if(!A){updateResult(expr);return}
+ const step=5,frag=document.createDocumentFragment();
+ for(let y=0;y<h;y+=step)for(let x=0;x<w;x+=step){
+   const px=x+step/2,py=y+step/2,a=pointInSet(A,px,py),b=B?pointInSet(B,px,py):false;
+   let yes=currentOp==='only-a'?a:currentOp==='only-b'?b:currentOp==='union'?(a||b):currentOp==='intersection'?(a&&b):currentOp==='a-b'?(a&&!b):currentOp==='b-a'?(b&&!a):currentOp==='ac'?!a:currentOp==='bc'?!b:false;
+   if(yes){let r=document.createElementNS(NS,'rect');r.setAttribute('x',x);r.setAttribute('y',y);r.setAttribute('width',step+.5);r.setAttribute('height',step+.5);r.setAttribute('fill','#f59e0b');r.setAttribute('fill-opacity','.28');frag.appendChild(r)}
+ }
+ svg.appendChild(frag);updateResult(expr)
+}
+
+
+let exprCursorStart=0,exprCursorEnd=0;
+const exprBox=document.querySelector('#expr');
+function rememberExprCursor(){
+ exprCursorStart=exprBox.selectionStart ?? exprBox.value.length;
+ exprCursorEnd=exprBox.selectionEnd ?? exprCursorStart;
+}
+exprBox.addEventListener('click',rememberExprCursor);
+exprBox.addEventListener('keyup',rememberExprCursor);
+exprBox.addEventListener('select',rememberExprCursor);
+document.querySelectorAll('.exprToken,#exprComp').forEach(b=>{
+ b.addEventListener('mousedown',()=>rememberExprCursor());
+});
+
+function insertAtCursor(text){
+ const e=document.querySelector('#expr');
+ const start=exprCursorStart ?? e.value.length;
+ const end=exprCursorEnd ?? start;
+ e.value=e.value.slice(0,start)+text+e.value.slice(end);
+ const pos=start+text.length;
+ e.focus();
+ e.setSelectionRange(pos,pos);
+ exprCursorStart=exprCursorEnd=pos;
+}
+document.querySelectorAll('.exprToken').forEach(b=>b.onclick=()=>{
+ const e=document.querySelector('#expr');
+ const tok=b.dataset.token;
+ insertAtCursor(tok);
+ if(tok.trim()) e.dataset.compOpen='';
+});
+
+document.querySelector('#expr').addEventListener('input',()=>{
+ const e=document.querySelector('#expr');
+ const before=e.value.slice(0,e.selectionStart ?? e.value.length);
+ const removedBefore=(before.match(/\s/g)||[]).length;
+ const pos=(e.selectionStart ?? e.value.length)-removedBefore;
+ e.value=e.value.replace(/\s+/g,'');
+ e.setSelectionRange(pos,pos);
+ e.dataset.compOpen='';
+});
+
+document.querySelector('#exprComp').onclick=()=>{
+ const e=document.querySelector('#expr');
+ const start=exprCursorStart ?? e.value.length;
+ const end=exprCursorEnd ?? start;
+ const text='CG()';
+ e.value=e.value.slice(0,start)+text+e.value.slice(end);
+ const pos=start+3;
+ e.focus();
+ e.setSelectionRange(pos,pos);
+ exprCursorStart=exprCursorEnd=pos;
+};
+document.querySelector('#exprBack').onclick=()=>{
+ const e=document.querySelector('#expr');
+ let start=e.selectionStart ?? e.value.length;
+ let end=e.selectionEnd ?? start;
+ if(start!==end){
+   e.value=e.value.slice(0,start)+e.value.slice(end);
+ }else if(start>0){
+   e.value=e.value.slice(0,start-1)+e.value.slice(end);
+   start--;
+ }
+ e.focus();
+ e.setSelectionRange(start,start);
+};
+document.querySelector('#exprClear').onclick=()=>{
+ document.querySelector('#expr').value='';
+ document.querySelector('#expr').dataset.compOpen='';
+ currentOp='none';
+ document.querySelectorAll('.op').forEach(x=>x.classList.remove('active'));
+ renderShade();
+ document.querySelector('#resultExpr').innerHTML='';
+ document.querySelector('#resultSet').textContent='{ }';
+};
+
+document.querySelector('#applyExpr').onclick=()=>{
+ document.querySelectorAll('.op').forEach(x=>x.classList.remove('active'));
+ currentOp='custom';
+ document.querySelectorAll('.op').forEach(x=>x.classList.remove('active'));
+ renderShade();
+ status.textContent='Custom expression highlighted.';
+};
+
+document.querySelector('#addSet').onclick=addSet;document.querySelector('#addItem').onclick=addItem;input.onkeydown=e=>{if(e.key==='Enter')addItem()};
+document.querySelector('#numbers').onclick=()=>{
+ const existing=new Set([...board.querySelectorAll('.item')].map(x=>x.textContent));
+ const points=[...board.querySelectorAll('.item')].map(el=>({x:el.offsetLeft+el.offsetWidth/2,y:el.offsetTop+el.offsetHeight/2}));
+ for(let i=1;i<=9;i++)if(!existing.has(String(i))){
+   const p=randomPoint(points);makeItem(String(i),p.x,p.y);points.push({x:p.x,y:p.y});
+ }
+ renderShade();
+ status.textContent='1–9 placed randomly with extra spacing.';
+};
+document.querySelector('#letters').onclick=()=>{
+ const existing=new Set([...board.querySelectorAll('.item')].map(x=>x.textContent));
+ const points=[...board.querySelectorAll('.item')].map(el=>({x:el.offsetLeft+el.offsetWidth/2,y:el.offsetTop+el.offsetHeight/2}));
+ for(let i=0;i<26;i++)if(!existing.has(String(i))){
+   const p=randomPoint(points);makeItem(String.fromCharCode(65+i),p.x,p.y);points.push({x:p.x,y:p.y});
+ }
+ renderShade();
+ status.textContent='A–Z placed randomly with extra spacing.';
+};
+
+document.querySelector('#smaller').onclick=()=>{if(!selected||!selected.classList.contains('set'))return status.textContent='Select a circle first.';let z=Math.max(130,selected.offsetWidth-30);selected.style.width=z+'px';selected.style.height=z+'px';renderShade()};
+document.querySelector('#larger').onclick=()=>{if(!selected||!selected.classList.contains('set'))return status.textContent='Select a circle first.';let z=Math.min(520,selected.offsetWidth+30);selected.style.width=z+'px';selected.style.height=z+'px';renderShade()};
+document.querySelector('#clearItems').onclick=()=>board.querySelectorAll('.item').forEach(x=>x.remove());
+
+document.querySelector('#del').onclick=()=>{
+ if(!selected) return;
+ if(selected.classList.contains('item') || selected.classList.contains('set')){
+   selected.remove();
+   selected=null;
+   renderShade();
+ }
+};
+
+document.querySelector('#reset').onclick=()=>{
+ document.querySelector('#expr').value='';
+ document.querySelector('#expr').dataset.compOpen='';
+ const itemInput=document.querySelector('#itemText');
+ if(itemInput)itemInput.value='';
+board.querySelectorAll('.set,.item').forEach(x=>x.remove());makeDefaultSets();currentOp='none';document.querySelectorAll('.op').forEach(x=>x.classList.remove('active'));renderShade()};
+document.querySelectorAll('.op').forEach(b=>{
+ b.addEventListener('mousedown',()=>rememberExprCursor());
+ b.onclick=()=>{
+   const chosen=b.dataset.op;
+   const labels={
+     'none':'',
+     'only-a':'A',
+     'only-b':'B',
+     'union':'A∪B',
+     'intersection':'A∩B',
+     'a-b':'A\\B',
+     'b-a':'B\\A',
+     'ac':'CG(A)',
+     'bc':'CG(B)'
+   };
+   if(chosen==='none'){
+     const e=document.querySelector('#expr');
+     e.value='';
+     exprCursorStart=exprCursorEnd=0;
+     e.focus();
+     e.setSelectionRange(0,0);
+     return;
+   }
+   insertAtCursor(labels[chosen] ?? '');
+ }
+});
+board.addEventListener('pointerdown',e=>{if(e.target===board||e.target===svg)select(null)});
+window.addEventListener('resize',renderShade);
+makeDefaultSets();renderShade();
+
+document.addEventListener('keydown',e=>{
+ const expr=document.querySelector('#expr');
+ if(e.key==='Enter'){
+   e.preventDefault();
+   document.querySelector('#applyExpr').click();
+   return;
+ }
+ if(e.key==='Escape'){
+   e.preventDefault();
+   document.querySelector('#exprClear').click();
+   expr.focus();
+ }
+});
+
+})();
+</script>
+</body></html>
