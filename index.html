@@ -183,7 +183,7 @@ function setMapAt(x,y){
  const m={};[...board.querySelectorAll('.set')].forEach(el=>{m[el.dataset.name]=pointInSet(circle(el),x,y)});return m;
 }
 function normalizeExpr(raw){
- return raw.replace(/CG\s*\(([A-Za-z])\)/g,'~$1').replace(/C_G\s*\(([A-Za-z])\)/g,'~$1').replace(/\s+/g,'').replace(/u/gi,'∪').replace(/n/gi,'∩')
+ return raw.replace(/C_G/g,'C').replace(/CG/g,'C').replace(/\s+/g,'').replace(/u/gi,'∪').replace(/n/gi,'∩')
 }
 function tokenize(raw){
  const e=normalizeExpr(raw),t=[];for(let i=0;i<e.length;i++){let c=e[i];if(/[A-Za-z]/.test(c))t.push(c.toUpperCase());else if('∪∩()~\\'.includes(c))t.push(c);else return null}return t
@@ -192,6 +192,13 @@ function evalExpression(raw, membership){
  const t=tokenize(raw);if(!t||!t.length)return null;let pos=0;
  function factor(){
  if(t[pos]==='~'){pos++;return !factor()}
+ if(t[pos]==='C' && t[pos+1]==='('){
+   pos+=2;
+   let v=union();
+   if(t[pos]!==')')throw 0;
+   pos++;
+   return !v;
+ }
  if(t[pos]==='('){pos++;let v=union();if(t[pos]!==')')throw 0;pos++;return v}
  let n=t[pos++];if(!n||!/[A-Z]/.test(n))throw 0;return !!membership[n]
 }
@@ -221,13 +228,11 @@ function updateResult(expr){
  else if(expr==='C_G B') resultExpr.innerHTML='C<sub>G</sub>B';
  else {
    const compact=expr.replace(/\s+/g,'');
-   const parts=compact.split(/(C(?:_G|G)\([A-Za-z]\))/g);
-   resultExpr.innerHTML=parts.map(p=>{
-     const m=p.match(/^C(?:_G|G)\(([A-Za-z])\)$/);
-     if(m)return 'C<sub>G</sub>('+m[1]+')';
-     return p.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-             .replace(/([∪∩\\])/g,' $1 ');
-   }).join('');
+   let pretty=compact
+     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+     .replace(/C(?:_G|G)\(/g,'C<sub>G</sub>(')
+     .replace(/([∪∩\\])/g,' $1 ');
+   resultExpr.innerHTML=pretty;
  }
  document.querySelector('#resultSet').textContent=expr ? '{ '+vals.join(', ')+' }' : '';
 }
@@ -419,6 +424,17 @@ makeDefaultSets();renderShade();
 
 document.addEventListener('keydown',e=>{
  const expr=document.querySelector('#expr');
+
+ // Delete key removes the selected item or set, unless the user is typing in a text field.
+ if(e.key==='Delete'){
+   const typing=e.target.matches('input,textarea,[contenteditable="true"]');
+   if(!typing && selected){
+     e.preventDefault();
+     document.querySelector('#del').click();
+   }
+   return;
+ }
+
  if(e.key==='Enter'){
    e.preventDefault();
    document.querySelector('#applyExpr').click();
